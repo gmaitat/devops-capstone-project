@@ -1,0 +1,45 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: python:3.9-slim
+
+    services:
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_PASSWORD: pgs3cr3t
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Linting
+        run: |
+          flake8 service --count --max-line-length=100 --statistics --exit-zero
+          pylint service --max-line-length=100 --disable=R0903,W0707 --exit-zero
+
+      - name: Run unit tests with nosetests
+        run: nosetests
+        env:
+          DATABASE_URI: "postgresql://postgres:pgs3cr3t@postgres:5432/testdb"

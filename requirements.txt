@@ -1,0 +1,17 @@
+Flask>=2.2.2
+Flask-SQLAlchemy>=3.0.2
+psycopg2-binary>=2.9.5
+SQLAlchemy>=1.4.46
+flask-talisman>=1.0.0
+Flask-Cors>=3.0.10
+
+# Testing
+nose>=1.3.7
+pinocchio>=0.4.3
+coverage>=7.0.5
+factory-boy>=3.2.1
+Faker>=16.6.0
+
+# Linting
+flake8>=6.0.0
+pylint>=2.16.1

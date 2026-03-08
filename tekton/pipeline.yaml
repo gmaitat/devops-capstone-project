@@ -1,0 +1,90 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: cd-pipeline
+spec:
+  params:
+    - name: build-image
+      description: The image url for the application
+  workspaces:
+    - name: pipeline-workspace
+  tasks:
+    - name: init
+      taskRef:
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+
+    - name: clone
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace
+      params:
+        - name: url
+          value: https://github.com/gmaitat/devops-capstone-project.git
+        - name: revision
+          value: main
+      runAfter:
+        - init
+
+    - name: lint
+      taskRef:
+        name: flake8
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: image
+          value: "python:3.9-slim"
+        - name: args
+          value: ["--count","--max-line-length=100","--statistics","--exit-zero"]
+      runAfter:
+        - clone
+
+    - name: tests
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: database_uri
+          value: postgresql+psycopg2://postgres:postgres@postgresql:5432/postgres
+        - name: args
+          value: "-v --with-spec --spec-color"
+      runAfter:
+        - lint
+
+    - name: build
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: IMAGE
+          value: $(params.build-image)
+      runAfter:
+        - tests
+
+    - name: deploy
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      params:
+        - name: SCRIPT
+          value: |
+            echo "Updating manifest..."
+            sed -i "s|$(SN_ICR_NAMESPACE)|$(params.build-image)|g" deploy/deployment.yaml
+            cat deploy/deployment.yaml
+            echo "Deploying to OpenShift..."
+            oc apply -f deploy/
+            oc rollout status deploy/accounts
+      runAfter:
+        - build
